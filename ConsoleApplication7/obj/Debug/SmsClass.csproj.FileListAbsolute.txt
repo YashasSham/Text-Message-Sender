@@ -1,0 +1,8 @@
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\bin\Debug\ConsoleApplication7.exe.config
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\bin\Debug\ConsoleApplication7.exe
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\bin\Debug\ConsoleApplication7.pdb
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\obj\Debug\SmsClass.csprojResolveAssemblyReference.cache
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\obj\Debug\ConsoleApplication7.exe
+c:\users\yashas\documents\visual studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\obj\Debug\ConsoleApplication7.pdb
+C:\Users\yashas\Documents\Visual Studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\bin\Debug\Newtonsoft.Json.dll
+C:\Users\yashas\Documents\Visual Studio 2012\Projects\ConsoleApplication7\ConsoleApplication7\bin\Debug\Newtonsoft.Json.xml
