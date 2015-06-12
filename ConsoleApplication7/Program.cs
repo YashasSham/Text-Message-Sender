@@ -25,7 +25,7 @@ namespace ExotelSDK
          * Takes "From","To" and "Body" of the message as the input
          * returns "sid" of the message*/
 
-        public string Send(string from, string to, string Body)
+        public string Send(string from, string to, string Body,int resend)
         {
             Dictionary<string, string> postValues = new Dictionary<string, string>();
             postValues.Add("From", from);
@@ -45,6 +45,7 @@ namespace ExotelSDK
             {
                 return true;
             };
+
             string smsURL = "https://twilix.exotel.in/v1/Accounts/"+ this.SID+ "/Sms/send";      //url to which post has to be done
             HttpWebRequest objRequest = (HttpWebRequest)WebRequest.Create(smsURL);
             objRequest.Credentials = new NetworkCredential(this.SID, this.token);
@@ -67,9 +68,9 @@ namespace ExotelSDK
                 responseStream.Close();
             }
             //Console.WriteLine(postResponse);
-
-            Save(Extract(postResponse, "Sid"),"queued");            //Save this data in the json file(input.json) also//extract the Sid of the message from the Response(returned as a xml string)
-
+            
+            Save(Extract(postResponse, "Sid"), "queued",resend);            //Save this data in the json file(input.json) also//extract the Sid of the message from the Response(returned as a xml string)
+            
             return Extract(postResponse, "Sid");                    //returns the Sid
             
 
@@ -187,7 +188,7 @@ namespace ExotelSDK
          * It only adds new values to update use "Update" method
          */
 
-        public void Save(string SID, string Status)
+        public void Save(string SID, string Status,int resend)
         {
             string json = File.ReadAllText("input.json");
             dynamic jsonObj = Newtonsoft.Json.JsonConvert.DeserializeObject(json);
@@ -203,6 +204,7 @@ namespace ExotelSDK
 
             jsonObj["Sid"][0][j] = SID;                                                ////////saves the Sid andthe Status of the message
             jsonObj["Status"][0][j] = Status;
+            jsonObj["resend"][0][j] = resend;
 
             string output = Newtonsoft.Json.JsonConvert.SerializeObject(jsonObj, Newtonsoft.Json.Formatting.Indented);
             File.WriteAllText("input.json", output);
@@ -218,6 +220,16 @@ namespace ExotelSDK
          * this method checks if the previosly sent message have been delivered or not
          * time consuming..so,Best to perform every 2-3 hours
          * no return*/
+        internal enum status
+        {
+            Failed= 1,
+            Failed_DND = 2,
+            Sent = 3,
+            Queued= 4,
+            Sending=5,
+            Submitted=6,
+
+        }
 
         public void check()
         {
@@ -226,42 +238,108 @@ namespace ExotelSDK
 
             int i = Convert.ToInt32(jsonObj["Sid"][0]["Count"]);                //reads the "Count" value to get the number of messages sent
        
-            Console.WriteLine(i);
-            Console.ReadLine();
-            SendSMS s = new SendSMS(this.SID, this.token);
-            
+           // Console.WriteLine(i);
+                        
             for (int j = 1; j <= i;j++ )
             {
-                string a = Convert.ToString(j);
-                string b=jsonObj["Sid"][0][a];
+                string x = Convert.ToString(j);
+                int a = check(j);
+                Console.WriteLine(a);
+                Console.WriteLine("The status of the message " + jsonObj["Sid"][0][x] + " is " + Enum.GetName(typeof(status), a));
+   
+            }
+            //return 0;
+        }
 
-                if (jsonObj["Status"][0][a] == "queued"|| jsonObj["Status"][0][a] == "sending")          //if the sms is being queued or sent we cant do anything but wait to get status changed
-                {  
+        public int check(int j)
+        {
+            string json = File.ReadAllText("input.json");
+            dynamic jsonObj = Newtonsoft.Json.JsonConvert.DeserializeObject(json);
 
-                    string srg = s.Status(b, "Status");
-                    Console.WriteLine(srg);
+            int i = Convert.ToInt32(jsonObj["Sid"][0]["Count"]);                //reads the "Count" value to get the number of messages sent
 
-                    if (jsonObj["Status"][0][a] == "failed")                                              //if this changed status is "failed" we have to resend it
+            //Console.WriteLine(i);
+            SendSMS s = new SendSMS(this.SID, this.token);
+            string a = Convert.ToString(j);
+            string b = jsonObj["Sid"][0][a];
+
+            if (jsonObj["Status"][0][a] == "queued" || jsonObj["Status"][0][a] == "sending" || jsonObj["Status"][0][a] == "submitted")          //if the sms is being queued or sent we cant do anything but wait to get status changed
+            {
+
+                string srg = s.Status(b, "Status");
+                Console.WriteLine(srg);
+
+                if (srg == "failed")                                              //if this changed status is "failed" we have to resend it
+                {
+                    if (jsonObj["resend"][0][a] < 3)
                     {
-                        s.Send(s.Status(jsonObj["Sid"][0][a], "From"), s.Status(jsonObj["Sid"][0][a], "To"), s.Status(jsonObj["Sid"][0][a], "Body"));
-                        jsonObj["Status"][0][a] = "sent";
-                        s.Save(b, jsonObj["Status"][0][a]);
+                        jsonObj["resend"][0][a]++;
+                        s.Send(s.Status(jsonObj["Sid"][0][a], "From"), s.Status(jsonObj["Sid"][0][a], "To"), s.Status(jsonObj["Sid"][0][a], "Body"), 0);
+                        jsonObj["Status"][0][a] = "queued";
+                        s.Save(b, jsonObj["Status"][0][a], jsonObj["resend"][0][a]++);
+                        return 4;
                     }
                     else
                     {
-                        s.update(a, srg);                                                                   //other possible outcomes would be sent,queued,failed_DND or sending
-                                                                                                            //so just write the status in the json file(input.json)
+                        s.update(a, "failed");
+                        return 1;
                     }
-
                 }
-                else if (jsonObj["Status"][0][a] == "failed_dnd")
+                else if (srg == "failed-dnd")
                 {
                     Console.WriteLine("the user has activated DND");                                        //If the account is updated to payed one then we can resend it as transactional
+                    s.update(a, srg);
+                    return 2;
+                    Console.WriteLine(srg);
+                }
+                else
+                {
+                    if (srg == "sent")
+                    {
+                        s.update(a, srg);
+                        return 3;
+                        Console.WriteLine(srg);
+                    }                                                                   //other possible outcomes would be sent,queued,failed_DND or sending
+                    else if (srg == "queued")                                           //so just write the status in the json file(input.json)
+                    {
+                        s.update(a, srg);
+                        return 4;
+                        Console.WriteLine(srg);
+                    }
+                    else if (srg == "sending")
+                    {
+                        s.update(a, srg);
+                        return 5;
+                        Console.WriteLine(srg);
+                    }
+                    else if (srg == "submitted")
+                    {
+                        s.update(a, srg);
+                        return 6;
+                        Console.WriteLine(srg);
+                    }
                 }
 
             }
-        }
+            else if (jsonObj["Status"][0][a] == "failed")
+            {
+                return 1;
+            }
+            else if (jsonObj["Status"][0][a] == "failed-dnd")
+            {
+                return 2;
+            }
+            else if (jsonObj["Status"][0][a] == "submitted")
+            {
+                return 6;
+            }
+            else 
+            {
+                return 3;
+            }
 
+            return 3;            
+        }
         /********************************check method ends here*****************************************************/
 
         /*******************************Update method to update the Jsson data**************************************/
@@ -299,15 +377,18 @@ namespace ExotelSDK
 
         public static void Main(string[] args)
         {
-            SendSMS s = new SendSMS("mudflap1", "2339b0600aafd144542ba6b5b538f13054de3ee1");
-            /*
-            string Sid=s.Send("09243422233", "7411894986", "hello! how are u?.");
+           SendSMS s = new SendSMS("mudflap1", "2339b0600aafd144542ba6b5b538f13054de3ee1");
+            
+          /* string Sid=s.Send("09243422233", "9019205965", "hello! how re u?.",0);
 
             string Status=s.Status(Sid,"Status");
             Console.WriteLine("the message id is" + Sid+ "and the message is queued to be sent");
-            Console.WriteLine("Check after some time for confirmation");
-            */
-            s.check();                        //to be used after some time of sending the message
+            Console.WriteLine("Check after some time for confirmation");*/
+          
+           s.check();                        //to be used after some time of sending the message
+
+           
+           Console.ReadLine();
         }
 
     }
